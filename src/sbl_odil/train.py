@@ -21,7 +21,7 @@ def init_state(les_data: dict, z: jnp.ndarray, n_z: int) -> ABLState:
     state.v = collapse_profile(les_data["v"], n_z)
     state.k = jnp.maximum(collapse_profile(les_data["k"], n_z), 1e-6)
     state.theta = collapse_profile(les_data["theta"], n_z)
-    state.eps = collapse_profile(les_data["eps"], n_z)
+    state.eps = jnp.maximum(collapse_profile(les_data["eps"], n_z), 1e-6)
 
     return state
 
