@@ -1,4 +1,4 @@
-# SBL ODIL (Research Repo)
+# SBL ODIL
 
 Stable Boundary Layer w/ ODIL/B-ODIL attempt. It follows the GABLS weakly stable (0.05 K/h), moderately stable (0.25 K/h), and truly neutral boundary layer (TNBL) cases trying to reproduce the results from [this paper](https://doi.org/10.1007/s10546-025-00945-6).
 The B-ODIL is my attempt to do what is described in Sec. 2.3 [here](https://arxiv.org/pdf/2510.15664)
