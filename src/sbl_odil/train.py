@@ -4,6 +4,8 @@ import jax
 import jax.numpy as jnp
 from jax import jit
 import optax
+import numpy as np
+import matplotlib.pyplot as plt
 
 from .config import kappa
 from .data_io import collapse_profile
@@ -19,12 +21,7 @@ def init_state(les_data: dict, z: jnp.ndarray, n_z: int) -> ABLState:
     state.v = collapse_profile(les_data["v"], n_z)
     state.k = jnp.maximum(collapse_profile(les_data["k"], n_z), 1e-6)
     state.theta = collapse_profile(les_data["theta"], n_z)
-
-    if "eps" in les_data:
-        state.eps = collapse_profile(les_data["eps"], n_z)
-    else:
-        L_mix = kappa * z / (1 + kappa * z / 100.0)
-        state.eps = jnp.maximum(state.k ** 1.5 / (L_mix + 1e-6), 1e-6)
+    state.eps = collapse_profile(les_data["eps"], n_z)
 
     return state
 

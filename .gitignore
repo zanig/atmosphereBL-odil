@@ -29,3 +29,7 @@ run_joint*
 joint* 
 ABL_SBL_bodi.py
 src/sbl_odil/bodil_joint*
+#matlab junk & data dir
+*.m
+les_data_for_scm_uq/*
+ les_data_for_scm_uq
