@@ -25,7 +25,7 @@ les_data_for_scm_uq/data/
 
 .DS_Store
 
-run_joint*
+run_joint_*
 joint* 
 ABL_SBL_bodi.py
 src/sbl_odil/bodil_joint*

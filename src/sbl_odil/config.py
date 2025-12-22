@@ -29,7 +29,7 @@ DEFAULT_LATITUDE = 73.0
 DEFAULT_U_GEOSTROPHIC = 8.0
 
 DEFAULT_WEIGHTS = {
-    "lambda_pde": 1e2,
+    "lambda_pde": 1e0,
     "lambda_bc": 1e0,
     "lambda_data": 4e0,
 }

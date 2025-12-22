@@ -1,4 +1,3 @@
-"""CLI entry point for SBL ODIL experiments."""
 
 import argparse
 from pathlib import Path

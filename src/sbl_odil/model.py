@@ -63,9 +63,9 @@ class Turbulence:
     }
 
     def __init__(self):
-        self.C_mu = 0.03
-        self.C_1 = 1.2
-        self.C_2 = 2.0
+        self.C_mu = 0.0123123
+        self.C_1 = 1.
+        self.C_2 = 2.
         self.sigma_k = 1.0
         self.sigma_eps = 1.3333212
 

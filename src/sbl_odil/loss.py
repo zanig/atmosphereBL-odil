@@ -116,3 +116,38 @@ def loss_fn(state_array, params_array, bc_params, les_data, forcing, weights, z,
     """JIT wrapper for ODIL loss."""
     loss, _ = compute_odil_loss(state_array, params_array, bc_params, les_data, forcing, weights, z, z0, z_top)
     return loss
+
+def joint_loss(
+    states, # list of lists
+    params, #list
+    bcs, #list of lists
+    les_data, # list of lists
+    weights,
+    forcings,
+    z, #list of lists
+    z0, #list
+    ):
+    total_joint_loss = 0.0
+    total_comps = {"L_PDE" : 0.0, "L_data" : 0.0, "L_BC" : 0.0}
+    
+    
+    
+    for i in range(len(states)):
+        
+        state_arr_i = states[i]
+        bc_params_i = bcs[i]
+        les_data_i  = les_data[i]
+        forcing_i   = forcings[i]
+        z_i         = z[i]        
+        z_top_i     = z_i[-1]
+        
+        loss_i, components_i = compute_odil_loss(
+                            state_arr_i, params, bc_params_i, les_data_i,
+                            forcing_i, weights,
+                            z_i, z0, z_top_i)
+        
+        total_joint_loss += loss_i
+        for k in total_comps:
+            total_comps[k] += components_i[k]
+        
+        return total_joint_loss, total_comps
