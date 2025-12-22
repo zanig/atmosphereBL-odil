@@ -150,4 +150,4 @@ def joint_loss(
         for k in total_comps:
             total_comps[k] += components_i[k]
         
-        return total_joint_loss, total_comps
+    return total_joint_loss, total_comps

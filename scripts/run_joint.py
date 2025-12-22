@@ -111,7 +111,7 @@ def main() -> None:
     print(f"  sigma_eps  = {final_params.sigma_eps:.4f}")
 
     print(f"\nCase-Specific Results (example for u*):")
-    print(f"  {'Case':<10} | {'Learned u*':<12} | {'LES u*':<12} | {'Error ':<10}")
+    print(f"  {'Case':<10} | {'Learned u*':<12} | {'LES u*':<12} | {'Error (pct) ':<10}")
     print("-" * 22)
     
     for i, name in enumerate(case_names):
