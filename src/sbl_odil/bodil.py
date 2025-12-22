@@ -21,8 +21,11 @@ def run_bodil_sampling(
     u_star_init=0.3,
     save_path="bodil_samples.npz",
     z0=0.1,
+    init_noise = 0.0
 ):
+    
     """Sample the parameter posterior using B-ODIL."""
+    key = random.PRNGKey(1)
     print("\n" + "=" * 70)
     print("B-ODIL PARAMETER SAMPLING")
     print("=" * 70)
@@ -46,6 +49,7 @@ def run_bodil_sampling(
         print_every=10000,
         u_star_init=u_star_init,
         z0=z0,
+        init_noise=init_noise
     )
 
     params_map_unconstrained = params_map.to_array()
@@ -64,7 +68,7 @@ def run_bodil_sampling(
 
     les_first = {k: collapse_first_sample(v) for k, v in les_data.items()}
 
-    state_current = init_state(les_data, z, n_z)
+    state_current = init_state(les_data, z, n_z, key, init_noise)
     state_current_array = state_current.to_array()
     params_current_array = Turbulence.from_array(current_params_unc).to_array()
     bc_params_current = jnp.array([current_u_star])
@@ -96,9 +100,8 @@ def run_bodil_sampling(
     log_post_current += log_prior_current
 
     accepted = 0
-    proposal_std = 1.
+    proposal_std = .666
 
-    key = random.PRNGKey(1)
 
     for i in range(n_samples):
         key, subkey = random.split(key)
@@ -108,12 +111,12 @@ def run_bodil_sampling(
 
         print(f"\nSample {i + 1}/{n_samples}: Optimizing u*(theta_proposed)...")
 
-        state_init = init_state(les_data, z, n_z)
+        state_init = init_state(les_data, z, n_z, key, init_noise)
         params_fixed = Turbulence.from_array(proposal_params_unc)
         state_array = state_init.to_array()
         params_array_fixed = params_fixed.to_array()
         bc_params = jnp.array([current_u_star])
-        optimizer = optax.novograd(learning_rate=5e-4) ## idk why but novograd > adam
+        optimizer = optax.novograd(learning_rate=1e-4) ## idk why but novograd > adam
         opt_state = optimizer.init(state_array)
 
         @jax.jit
@@ -127,7 +130,7 @@ def run_bodil_sampling(
             return state_new, opt_state_new, loss_val
 
         current_state = state_array
-        for _ in range(40000):
+        for _ in range(75000):
             current_state, opt_state, loss_val = quick_step_state_only(
                 current_state, opt_state, params_array_fixed, bc_params
             )

@@ -55,11 +55,11 @@ class Turbulence:
     """Turbulence model parameters with constraints (squish them into bounds with sigmoid)"""
 
     BOUNDS = {
-        "C_mu": (0.001, 0.12),
+        "C_mu": (0.01, 0.12),
         "C_1": (0.25, 3.0),
         "C_2": (0.35, 4.8),
-        "sigma_k": (0.5, 1.5),
-        "sigma_eps": (0.65, 1.95),
+        "sigma_k": (0.55, 1.5),
+        "sigma_eps": (0.8, 1.95),
     }
 
     def __init__(self):

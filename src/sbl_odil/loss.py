@@ -95,8 +95,8 @@ def compute_odil_loss(
         + jnp.mean((state.v - les_data["v"]) ** 2)
         + jnp.mean((state.k - les_data["k"]) ** 2)
     )
-    L_pen = 1e-6* jnp.mean(softplus(state.eps / -1e-10)) 
-    L_pen += 1e-6* jnp.mean(softplus(state.k / -1e-10))
+    L_pen = 1e-2 * jnp.mean(softplus(state.eps / -1e-10)) 
+    L_pen += 1e-6 * jnp.mean(softplus(state.k / -1e-10))
     L_pen = 0
     total_loss = (
         weights["lambda_pde"] * L_PDE

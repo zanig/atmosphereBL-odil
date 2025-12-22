@@ -39,6 +39,7 @@ def main() -> None:
         choices=["weak", "moderate"],
         help="SBL case: weak (0.05 K/h) or moderate (0.25 K/h)",
     )
+    parser.add_argument("--init_noise", type=float, default=0.0, help="Noise added to the initial condition")
     parser.add_argument("--epochs", type=int, default=100000, help="Number of optimization epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument(
@@ -79,6 +80,7 @@ def main() -> None:
         print_every=max(args.epochs // 20, 1000),
         u_star_init=les_data["u_star"],
         z0=DEFAULT_Z0,
+        init_noise=args.init_noise
     )
 
     print("\nPlotting results...")
@@ -103,6 +105,7 @@ def main() -> None:
             n_samples=args.n_samples,
             u_star_init=final_u_star,
             z0=DEFAULT_Z0,
+            init_noise= args.init_noise
         )
 
         plot_parameter_posteriors(samples, case_name)

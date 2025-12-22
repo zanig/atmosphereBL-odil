@@ -9,6 +9,11 @@ from scipy.ndimage import gaussian_filter
 
 from .data_io import collapse_profile
 
+def les_percentile_band(x, n_z, lo=2.5, hi=97.5):
+    x_c = collapse_profile(x, n_z)           # mean
+    x_lo = jnp.percentile(x, lo, axis=0)
+    x_hi = jnp.percentile(x, hi, axis=0)
+    return x_c, x_lo, x_hi
 
 def plot_loss_history(history, case_name, save_path=None):
     """Plot training loss history and components."""
@@ -20,7 +25,7 @@ def plot_loss_history(history, case_name, save_path=None):
     axes[0].set_xlabel("Epoch")
     axes[0].set_ylabel("Total Loss")
     axes[0].set_title(f"SBL({case_name}) Training Loss")
-    axes[0].grid(True, alpha=0.3)
+
 
     axes[1].semilogy(epochs, history["L_PDE"], "r-", label="L_PDE", linewidth=2)
     axes[1].semilogy(epochs, history["L_BC"], "g-", label="L_BC", linewidth=2)
@@ -29,7 +34,7 @@ def plot_loss_history(history, case_name, save_path=None):
     axes[1].set_ylabel("Loss Component")
     axes[1].set_title("Loss Components")
     axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
+
 
     plt.tight_layout()
     if save_path:
@@ -44,42 +49,44 @@ def plot_profiles_comparison(odil_state, les_data, z, case_name, save_path=None)
 
     z_km = z / 1000.0
 
-    les_u = collapse_profile(les_data["u"], len(z))
-    les_v = collapse_profile(les_data["v"], len(z))
-    les_k = collapse_profile(les_data["k"], len(z))
-    les_theta = collapse_profile(les_data["theta"], len(z))
-
+    les_u, les_u_lo, les_u_hi = les_percentile_band(les_data["u"], len(z))
+    les_v, les_v_lo, les_v_hi = les_percentile_band(les_data["v"], len(z))
+    les_k, les_k_lo, les_k_hi = les_percentile_band(les_data["k"], len(z))
+    les_theta, les_theta_lo, les_theta_hi = les_percentile_band(les_data["theta"], len(z))
+    axes[0].fill_betweenx(z_km,les_u_lo,les_u_hi,color="gray",alpha=0.3,label="LES 95%")
     axes[0].plot(les_u, z_km, "k-", linewidth=2, label="LES")
     axes[0].plot(odil_state.u, z_km, "r--", linewidth=2, label="ODIL")
     axes[0].set_xlabel("U [m/s]")
     axes[0].set_ylabel("Height [km]")
     axes[0].set_title("U Velocity")
     axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
 
+
+    axes[1].fill_betweenx(z_km,les_v_lo,les_v_hi,color="gray",alpha=0.3,label="LES 95%")
     axes[1].plot(les_v, z_km, "k-", linewidth=2, label="LES")
     axes[1].plot(odil_state.v, z_km, "r--", linewidth=2, label="ODIL")
     axes[1].set_xlabel("V [m/s]")
     axes[1].set_ylabel("Height [km]")
     axes[1].set_title("V Velocity")
     axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
 
+
+    axes[2].fill_betweenx(z_km,les_k_lo,les_k_hi,color="gray",alpha=0.3,label="LES 95%")
     axes[2].plot(les_k, z_km, "k-", linewidth=2, label="LES")
     axes[2].plot(odil_state.k, z_km, "r--", linewidth=2, label="ODIL")
     axes[2].set_xlabel("TKE [m^2/s^2]")
     axes[2].set_ylabel("Height [km]")
     axes[2].set_title("Turbulent Kinetic Energy")
     axes[2].legend()
-    axes[2].grid(True, alpha=0.3)
 
+    axes[3].fill_betweenx(z_km,les_theta_lo,les_theta_hi,color="gray",alpha=0.3,label="LES 95%")
     axes[3].plot(les_theta, z_km, "k-", linewidth=2, label="LES")
     axes[3].plot(odil_state.theta, z_km, "r--", linewidth=2, label="ODIL")
     axes[3].set_xlabel("theta [K]")
     axes[3].set_ylabel("Height [km]")
     axes[3].set_title("Potential Temperature")
     axes[3].legend()
-    axes[3].grid(True, alpha=0.3)
+
 
     plt.suptitle(f"SBL({case_name}) ODIL vs LES Comparison", fontsize=14, fontweight="bold")
     plt.tight_layout()
@@ -110,7 +117,7 @@ def plot_parameter_posteriors(samples, case_name, save_path=None):
         ax.set_ylabel("freq")
         ax.set_title(f"{name} Posterior")
         ax.legend()
-        ax.grid(True, alpha=0.3)
+
 
     plt.suptitle(f"SBL({case_name}) Parameter Posteriors", fontsize=14, fontweight="bold")
     plt.tight_layout()
@@ -229,42 +236,41 @@ def plot_profiles_with_uncertainty(state_samples, les_data, case_name, z, n_z, s
     fig, axes = plt.subplots(1, 3, figsize=(8, 4))
     z_km = z / 1000.0
 
-    les_u = collapse_profile(les_data["u"], n_z)
-    les_k = collapse_profile(les_data["k"], n_z)
-    les_theta = collapse_profile(les_data["theta"], n_z)
+    les_u, les_u_lo, les_u_hi = les_percentile_band(les_data["u"], len(z))
+    les_k, les_k_lo, les_k_hi = les_percentile_band(les_data["k"], len(z))
+    les_theta, les_theta_lo, les_theta_hi = les_percentile_band(les_data["theta"], len(z))
 
     axes[0].plot(les_u, z_km, "k-", linewidth=2, label="LES")
     axes[0].plot(u_mean, z_km, "r-", linewidth=2, label="B-ODIL mean")
-    axes[0].fill_betweenx(z_km, u_mean - 2 * u_std, u_mean + 2 * u_std, color="red", alpha=0.3, label="95% CI")
+    axes[0].fill_betweenx(z_km, u_mean - 2 * u_std, u_mean + 2 * u_std,
+                          color="red", alpha=0.3, label="95% CI")
+    axes[0].fill_betweenx(z_km,les_u_lo,les_u_hi,color="gray",
+                          alpha=0.3,label="LES 95%")
     axes[0].set_xlabel("U [m/s]")
     axes[0].set_ylabel("Height [km]")
     axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
     axes[0].set_title("U Velocity with Uncertainty")
 
     axes[1].plot(les_k, z_km, "k-", linewidth=2, label="LES")
     axes[1].plot(k_mean, z_km, "r-", linewidth=2, label="B-ODIL mean")
-    axes[1].fill_betweenx(z_km, k_mean - 2 * k_std, k_mean + 2 * k_std, color="red", alpha=0.3, label="95% CI")
+    axes[1].fill_betweenx(z_km, k_mean - 2 * k_std, k_mean + 2 * k_std,
+                          color="red", alpha=0.3, label="95% CI")
+    axes[1].fill_betweenx(z_km,les_k_lo,les_k_hi,color="gray",alpha=0.3,label="LES 95%")
     axes[1].set_xlabel("TKE [m^2/s^2]")
     axes[1].set_ylabel("Height [km]")
     axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
     axes[1].set_title("TKE with Uncertainty")
 
     axes[2].plot(les_theta, z_km, "k-", linewidth=2, label="LES")
     axes[2].plot(theta_mean, z_km, "r-", linewidth=2, label="B-ODIL mean")
-    axes[2].fill_betweenx(
-        z_km,
-        theta_mean - 2 * theta_std,
-        theta_mean + 2 * theta_std,
-        color="red",
-        alpha=0.3,
-        label="95% CI",
-    )
+    axes[2].fill_betweenx( z_km, theta_mean - 2 * theta_std,
+                          theta_mean + 2 * theta_std, color="red",
+                          alpha=0.3,label="95% CI")
+    axes[2].fill_betweenx(z_km,les_theta_lo,les_theta_hi,color="gray",
+                          alpha=0.3,label="LES 95%")
     axes[2].set_xlabel("theta [K]")
     axes[2].set_ylabel("Height [km]")
     axes[2].legend()
-    axes[2].grid(True, alpha=0.3)
     axes[2].set_title("Temperature with Uncertainty")
 
     plt.suptitle(f"SBL({case_name}) Profiles with Parameter Uncertainty", fontsize=14, fontweight="bold")

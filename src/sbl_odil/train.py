@@ -2,10 +2,10 @@
 
 import jax
 import jax.numpy as jnp
+
 from jax import jit
 import optax
-import numpy as np
-import matplotlib.pyplot as plt
+
 
 from .config import kappa
 from .data_io import collapse_profile
@@ -13,15 +13,25 @@ from .loss import compute_odil_loss, loss_fn
 from .model import ABLState, Turbulence
 
 
-def init_state(les_data: dict, z: jnp.ndarray, n_z: int) -> ABLState:
+def init_state(les_data: dict, z: jnp.ndarray, n_z: int, key: jax.random.PRNGKey, noise : float = 0.05) -> ABLState:
     """Initialize state from LES data or simple heuristics."""
+    key, *subkeys = jax.random.split(key, 6)
+    def add_relative_noise(x, key, rel_std): #decays with height
+        return x * (1.0 + rel_std * jax.random.normal(key, x.shape) * jnp.exp(-z / z.max()) )
+    def add_log_noise(x, key, sigma): #for eps and k
+        return x * jnp.exp(sigma  * jax.random.normal(key, x.shape) * jnp.exp(-z / z.max()))
     state = ABLState(n_z, z)
 
-    state.u = collapse_profile(les_data["u"], n_z)
-    state.v = collapse_profile(les_data["v"], n_z)
-    state.k = jnp.maximum(collapse_profile(les_data["k"], n_z), 1e-6)
-    state.theta = collapse_profile(les_data["theta"], n_z)
-    state.eps = jnp.maximum(collapse_profile(les_data["eps"], n_z), 1e-6)
+    state.u = add_relative_noise(
+                        collapse_profile(les_data["u"], n_z), subkeys[0], noise)
+    state.v = add_relative_noise(
+                        collapse_profile(les_data["v"], n_z), subkeys[1], noise)
+    state.k = add_log_noise(
+                        jnp.maximum(collapse_profile(les_data["k"], n_z), 1e-6), subkeys[2], noise)
+    state.theta = add_relative_noise(
+                        collapse_profile(les_data["theta"], n_z), subkeys[3], noise*0.1)
+    state.eps = add_log_noise(
+                        jnp.maximum(collapse_profile(les_data["eps"], n_z), 1e-6), subkeys[4], noise)
 
     return state
 
@@ -47,9 +57,11 @@ def train_odil(
     print_every=5000,
     u_star_init=0.3,
     z0=0.1,
+    init_noise=0.0
 ):
     """Train the SBL ODIL model for a single case."""
-    state = init_state(les_data, z, n_z)
+    key = jax.random.PRNGKey(1)
+    state = init_state(les_data, z, n_z, key=key, noise=init_noise)
     params = initialize_params()
 
     state_array = state.to_array()
