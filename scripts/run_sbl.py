@@ -7,7 +7,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))
 
-from sbl_odil.cases import SBLCase, coriolis_parameter, get_forcing
+from sbl_odil.cases import CASE_U_GEOSTROPHIC, SBLCase, coriolis_parameter, get_forcing
 from sbl_odil.config import (
     DEFAULT_LATITUDE,
     DEFAULT_N_Z,
@@ -36,8 +36,8 @@ def main() -> None:
         "--case",
         type=str,
         default="weak",
-        choices=["weak", "moderate"],
-        help="SBL case: weak (0.05 K/h) or moderate (0.25 K/h)",
+        choices=["weak", "moderate", "tnbl"],
+        help="SBL case: weak (0.05 K/h), moderate (0.25 K/h), or tnbl (neutral)",
     )
     parser.add_argument("--init_noise", type=float, default=0.0, help="Noise added to the initial condition")
     parser.add_argument("--epochs", type=int, default=100000, help="Number of optimization epochs")
@@ -56,8 +56,19 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    case = SBLCase.WEAK if args.case == "weak" else SBLCase.MODERATE
-    case_name = "W" if case == SBLCase.WEAK else "M"
+    case_lookup = {
+        "weak": SBLCase.WEAK,
+        "moderate": SBLCase.MODERATE,
+        "tnbl": SBLCase.TNBL,
+    }
+    case_name_lookup = {
+        "weak": "W",
+        "moderate": "M",
+        "tnbl": "TNBL",
+    }
+    case = case_lookup[args.case]
+    case_name = case_name_lookup[args.case]
+    u_geostrophic = CASE_U_GEOSTROPHIC.get(case, DEFAULT_U_GEOSTROPHIC)
 
     print(f"\n{'=' * 70}")
     print(f"STABLE BOUNDARY LAYER ODIL - {args.case.upper()} STABILITY")
@@ -66,8 +77,8 @@ def main() -> None:
     z = make_grid(DEFAULT_N_Z, DEFAULT_Z0, DEFAULT_Z_TOP)
     f_coriolis = coriolis_parameter(DEFAULT_LATITUDE)
 
-    les_data = load_sbl_data(case, args.data_dir, DEFAULT_Z_TOP, DEFAULT_U_GEOSTROPHIC)
-    forcing = get_forcing(case, f_coriolis, DEFAULT_U_GEOSTROPHIC)
+    les_data = load_sbl_data(case, args.data_dir, DEFAULT_Z_TOP, u_geostrophic)
+    forcing = get_forcing(case, f_coriolis, u_geostrophic)
 
     final_state, final_params, final_u_star, history = train_odil(
         les_data=les_data,

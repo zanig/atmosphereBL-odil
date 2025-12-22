@@ -11,11 +11,21 @@ class SBLCase(Enum):
 
     WEAK = "sblw"
     MODERATE = "sblm"
+    TNBL = "tnbl"
 
 
-COOLING_RATES = { 
+COOLING_RATES = {
     SBLCase.WEAK: 0.05 / 3600,
     SBLCase.MODERATE: 0.25 / 3600,
+    SBLCase.TNBL: 0.0,
+}
+
+CASE_U_GEOSTROPHIC = {
+    SBLCase.TNBL: 12.0,
+}
+
+CASE_THETA_TOP = {
+    SBLCase.TNBL: 300.0,
 }
 
 
@@ -33,9 +43,13 @@ def get_forcing(
     """Build the forcing dictionary for a given SBL case."""
     cooling_rate_K_per_s = COOLING_RATES[case]
     w_theta_surface = -cooling_rate_K_per_s * BL_height_estimate / 2.0
-    return {
+    forcing = {
         "u_G": u_geostrophic,
         "v_G": 0.0, #idk if this is correct????
         "f_coriolis": f_coriolis,
         "surface_heat_flux": w_theta_surface,
     }
+    theta_top = CASE_THETA_TOP.get(case)
+    if theta_top is not None:
+        forcing["theta_top"] = theta_top
+    return forcing

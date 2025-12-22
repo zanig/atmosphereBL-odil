@@ -70,7 +70,10 @@ def compute_odil_loss(
     theta_surf_les = les_data["theta"][0] ## match "surface " temperature
     res_theta_surf_bc = theta_surf_model - theta_surf_les
 
-    theta_top_val = theta_0 + gamma_above * (z_top - z_inversion)
+    if "theta_top" in forcing:
+        theta_top_val = forcing["theta_top"]
+    else:
+        theta_top_val = theta_0 + gamma_above * (z_top - z_inversion)
     res_u_top, res_v_top, res_theta_top = compute_top_bc_residuals(
         state.u, state.v, state.theta, forcing["u_G"], forcing["v_G"], theta_top_val
     )
