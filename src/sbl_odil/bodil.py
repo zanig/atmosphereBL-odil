@@ -7,7 +7,7 @@ import optax
 
 from .data_io import collapse_profile
 from .loss import compute_odil_loss, loss_fn
-from .model import Turbulence
+from .model import Turbulence, log_turbulence_jacobian
 from .train import init_state, train_odil
 
 
@@ -97,7 +97,7 @@ def run_bodil_sampling(
         ]
     )
     log_prior_current = -0.5 * jnp.sum(((params_vec - prior_means) / prior_stds) ** 2)
-    log_post_current += log_prior_current
+    log_post_current += log_prior_current + log_turbulence_jacobian(current_params_unc)
 
     accepted = 0
     proposal_std = .666
@@ -161,7 +161,7 @@ def run_bodil_sampling(
             ]
         )
         log_prior_proposed = -0.5 * jnp.sum(((params_prop_vec - prior_means) / prior_stds) ** 2)
-        log_post_proposed += log_prior_proposed
+        log_post_proposed += log_prior_proposed + log_turbulence_jacobian(proposal_params_unc)
 
         log_alpha = log_post_proposed - log_post_current
         alpha = float(jnp.minimum(1.0, jnp.exp(log_alpha)))

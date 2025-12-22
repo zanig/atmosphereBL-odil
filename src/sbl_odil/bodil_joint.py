@@ -5,7 +5,7 @@ import optax
 from jax import jit
 
 from .loss import joint_loss
-from .model import Turbulence, ABLState
+from .model import Turbulence, ABLState, log_turbulence_jacobian
 from .train_joint import train_joint_odil
 from .data_io import collapse_profile
 
@@ -66,7 +66,7 @@ def run_joint_bodil_sampling(
                        params_constrained.C_2, params_constrained.sigma_k, 
                        params_constrained.sigma_eps])
     log_prior_current = -0.5 * jnp.sum(((p_vec - prior_means) / prior_stds) ** 2)
-    log_post_current = -loss_current + log_prior_current
+    log_post_current = -loss_current + log_prior_current + log_turbulence_jacobian(current_params_unc)
     
     inner_optimizer = optax.novograd(learning_rate=1e-4)
     opt_state = inner_optimizer.init(current_states_concat)
@@ -107,7 +107,7 @@ def run_joint_bodil_sampling(
     saved_states = []
     
     accepted = 0
-    proposal_std = 0.76621
+    proposal_std = 0.75
     
     for i in range(n_samples):
         key, subkey = random.split(key)
@@ -118,9 +118,11 @@ def run_joint_bodil_sampling(
         print(f"Sample {i+1}/{n_samples}")
         temp_states = current_states_concat
         
+        #reinit opt
+        opt_state = inner_optimizer.init(current_states_concat)
         # do inner opt
         fixed_params_array = Turbulence.from_array(proposal_params_unc).to_array()
-        for _ in range(55555): 
+        for _ in range(15000): 
             temp_states, opt_state, _ = inner_step(temp_states, opt_state, fixed_params_array)
         state_proposed_concat = temp_states
         list_states_prop = unpack_states(state_proposed_concat)
@@ -134,7 +136,7 @@ def run_joint_bodil_sampling(
                                 p_prop_obj.sigma_k, p_prop_obj.sigma_eps])
         
         log_prior_proposed = -0.5 * jnp.sum(((p_prop_vec - prior_means) / prior_stds) ** 2)
-        log_post_proposed = -loss_proposed + log_prior_proposed
+        log_post_proposed = -loss_proposed + log_prior_proposed + log_turbulence_jacobian(proposal_params_unc)
 
         # accept/ reject step
         log_alpha = log_post_proposed - log_post_current
@@ -157,13 +159,11 @@ def run_joint_bodil_sampling(
         log_posteriors.append(float(log_post_current))
         saved_states.append(current_states_concat)
 
-
     samples = jnp.array(samples)
     log_posteriors = jnp.array(log_posteriors)
     saved_states = jnp.array(saved_states)
     acc_rate = accepted / n_samples
     print(f"\nJoint Sampling Complete. Acceptance rate: {acc_rate:.2%}")
-    
     
     p_names = ["C_mu", "C_1", "C_2", "sigma_k", "sigma_eps"] + [f"u_star_case{i}" for i in range(n_cases)]
 

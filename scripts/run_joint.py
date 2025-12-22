@@ -9,12 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "src"))
 
 from sbl_odil.cases import CASE_U_GEOSTROPHIC, SBLCase, coriolis_parameter, get_forcing
-from sbl_odil.config import (
-    DEFAULT_LATITUDE,
-    DEFAULT_WEIGHTS,
-    DEFAULT_Z0,
-    make_grid,
-)
+from sbl_odil.config import (DEFAULT_LATITUDE, DEFAULT_WEIGHTS,
+    DEFAULT_Z0,make_grid,)
 from sbl_odil.data_io import load_sbl_data
 from sbl_odil.train_joint import train_joint_odil 
 from sbl_odil.plotting import plot_profiles_comparison, plot_corner

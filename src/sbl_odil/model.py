@@ -55,15 +55,15 @@ class Turbulence:
     """Turbulence model parameters with constraints (squish them into bounds with sigmoid)"""
 
     BOUNDS = {
-        "C_mu": (0.01, 0.12),
-        "C_1": (0.25, 3.0),
-        "C_2": (0.35, 4.8),
-        "sigma_k": (0.55, 1.5),
-        "sigma_eps": (0.8, 1.95),
+        "C_mu": (0.015, 0.045),
+        "C_1": (0.61, 1.82),
+        "C_2": (0.96, 2.88),
+        "sigma_k": (0.5, 1.5),
+        "sigma_eps": (0.65, 1.95),
     }
 
     def __init__(self):
-        self.C_mu = 0.0123123
+        self.C_mu = 0.024
         self.C_1 = 1.
         self.C_2 = 2.
         self.sigma_k = 1.0
@@ -109,6 +109,16 @@ class Turbulence:
         params.sigma_k = cls._constrain(arr[3], *b["sigma_k"])
         params.sigma_eps = cls._constrain(arr[4], *b["sigma_eps"])
         return params
+
+
+def log_turbulence_jacobian(unconstrained: jnp.ndarray) -> jnp.ndarray:
+    """Log-Jacobian for the Turbulence sigmoid-bounded transform."""
+    sig = Turbulence._sigmoid(unconstrained)
+    log_det = 0.0
+    for i, key in enumerate(["C_mu", "C_1", "C_2", "sigma_k", "sigma_eps"]):
+        lo, hi = Turbulence.BOUNDS[key]
+        log_det = log_det + jnp.log(hi - lo) + jnp.log(sig[i]) + jnp.log(1.0 - sig[i])
+    return log_det
 
 
 jax.tree_util.register_pytree_node(

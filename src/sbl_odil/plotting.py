@@ -130,14 +130,13 @@ def plot_parameter_posteriors(samples, case_name, save_path=None):
 
 
 def plot_corner(samples, case_name, save_path=None):
-    """Create a corner plot of posterior parameter distributions."""
     param_names = [r"$C_\mu$", r"$C_1$", r"$C_2$", r"$\sigma_k$", r"$\sigma_\varepsilon$"]
     default_values = [0.03, 1.21, 1.92, 1.0, 1.3]
 
     n_params = 5
     data = np.array(samples[:, :n_params])
 
-    fig, axes = plt.subplots(n_params, n_params, figsize=(6, 6))
+    fig, axes = plt.subplots(n_params, n_params, figsize=(6, 6),)
 
     color = "#5BA3A8"
     color_dark = "#3D7A7F"
@@ -188,7 +187,7 @@ def plot_corner(samples, case_name, save_path=None):
                 ax.contour(X, Y, H.T, levels=levels, colors=[color_dark], linewidths=0.5, alpha=0.8)
 
                 ax.scatter(default_values[j], default_values[i], marker="*", s=150, c="black", zorder=10)
-
+                ax.set_xlim(default_values[j]*0.45, default_values[j]*1.55)
                 if i < n_params - 1:
                     ax.set_xticklabels([])
                 if j > 0:
@@ -200,8 +199,8 @@ def plot_corner(samples, case_name, save_path=None):
                 ax.set_ylabel(param_names[i], fontsize=12)
 
     legend_elements = [
-        Line2D([0], [0], marker="*", color="w", markerfacecolor="black", markersize=15, label=r"$\theta$ (Default)"),
-        plt.Rectangle((0, 0), 1, 1, fc=color, alpha=0.5, label=r"$p(\theta|y)$"),
+        Line2D([0], [0], marker="*", color="w", markerfacecolor="black", markersize=15, label=r"Default"),
+        plt.Rectangle((0, 0), 1, 1, fc=color, alpha=0.5, label=r"$p(\theta|(u,k)$"),
     ]
     fig.legend(handles=legend_elements, loc="upper right", frameon=True, fontsize=12, title="Legend")
 
