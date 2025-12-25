@@ -63,7 +63,7 @@ class Turbulence:
     }
 
     def __init__(self):
-        self.C_mu = 0.024
+        self.C_mu = 0.03
         self.C_1 = 1.
         self.C_2 = 2.
         self.sigma_k = 1.0
@@ -133,6 +133,9 @@ def compute_eddy_viscosity(k, eps, params):
     nu_t = params.C_mu * k**2 / (eps + 1e-10)
     return nu_t
 
+@jit 
+def compute_phi_epsilon(zeta, phi_m):
+    return jnp.where(zeta < 0, 1.0 - zeta, phi_m - zeta)
 
 @jit
 def compute_turbulent_fluxes(u, v, theta, k, eps, z, params):
@@ -195,8 +198,8 @@ def compute_buoyancy_production(theta, k, eps, z, params):
 
 @jit
 def compute_stability_functions(zeta):
-    """MOST stability functions with Dyer constants (clipped zeta)."""
-    zeta_clipped = jnp.clip(zeta, -2.0, 1.0)
+    """MOST stability functions (Businger-Dyer, clipped zeta)."""
+    zeta_clipped = jnp.clip(zeta, -5.0, 5.0)
     zeta_unstable = jnp.minimum(zeta_clipped, -1e-6)
     zeta_stable = jnp.maximum(zeta_clipped, 1e-6)
 
@@ -209,66 +212,67 @@ def compute_stability_functions(zeta):
     phi_m = jnp.where(zeta_clipped < 0, phi_m_unstable, phi_m_stable)
     phi_h = jnp.where(zeta_clipped < 0, phi_h_unstable, phi_h_stable)
 
-    return phi_m, phi_h
+    return phi_m, phi_h,
+
+
+def _safe_divide(num, den, default=0.0):
+    den_safe = jnp.where(jnp.abs(den) < 1e-10, 1.0, den)
+    return jnp.where(jnp.abs(den) < 1e-10, default, num / den_safe)
+
+
+def compute_zeta(z, u_star, w_theta):
+    """Local stability parameter zeta = z/L with L from w_theta."""
+    denom = u_star**3 * theta_0 + 1e-12
+    zeta = -(kappa * z * g / denom) * w_theta
+    return jnp.clip(zeta, -5.0, 5.0)
+
+
+def compute_f_un(zeta):
+    term1 = (2.0 - zeta)
+    term2 = 0.5 * gamma_1 * (1.0 - 12.0 * zeta + 7.0 * zeta**2)
+    term3 = (gamma_1**2 / 16.0) * zeta * (3.0 - 54.0 * zeta + 35.0 * zeta**2)
+    return term1 + term2 - term3
+
+
+def compute_f_st(zeta):
+    return (2.0 - zeta) - 2.0 * beta_stability * zeta * (1.0 - 2.0 * zeta + 2.0 * beta_stability * zeta)
 
 
 @jit
-def compute_phi_eps(zeta, phi_m):
-    """Phi_epsilon per van der Laan 2017 (clipped zeta)."""
-    zeta_clipped = jnp.clip(zeta, -2.0, 1.0)
-    zeta_unstable = jnp.minimum(zeta_clipped, -1e-6)
-    zeta_stable = jnp.maximum(zeta_clipped, 1e-6)
-    phi_eps_unstable = 1.0 - zeta_unstable
-    phi_eps_stable = phi_m - zeta_stable
-    return jnp.where(zeta_clipped < 0, phi_eps_unstable, phi_eps_stable)
-
-
-@jit
-def compute_tke_source_term(z, u_star, w_theta_surface, params):
-    L = compute_monin_obukhov_length(u_star, w_theta_surface)
-    L_safe = jnp.maximum(jnp.abs(L), 100.0)
-
-    zeta = jnp.clip(z / L_safe, -2.0, 1.0)
-
+def compute_tke_source_term(z, u_star, w_theta, params):
+    zeta = compute_zeta(z, u_star, w_theta)
+    
     phi_m, phi_h = compute_stability_functions(zeta)
-    phi_eps = compute_phi_eps(zeta, phi_m)
-    phi_m_safe = jnp.clip(phi_m, 0.1, 100.0)
-
+    phi_e = compute_phi_epsilon(zeta, phi_m)
     C_kD = kappa**2 / (params.sigma_k * jnp.sqrt(params.C_mu + 1e-10) + 1e-10)
 
-    prefactor = u_star**3 / (kappa * L_safe + 1e-10)
-    sigma_theta_local = sigma_theta
+    f_un = compute_f_un(zeta)
+    f_st = compute_f_st(zeta)
 
-    f_st = (2.0 - zeta) - 2.0 * beta_stability * zeta * (
-        1.0 - 2 * zeta + 2 * beta_stability * zeta
-    )
+    F_unstable = _safe_divide(phi_m - phi_e, zeta, 0.0) - phi_h / (sigma_theta * phi_m + 1e-10)
+    F_unstable = F_unstable - (C_kD / 4.0) * phi_m ** (13.0 / 2.0) * phi_e ** (-3.0 / 2.0) * f_un
 
-    S_k = prefactor * (
-        1.0
-        - phi_h / (sigma_theta_local * phi_m_safe + 1e-10)
-        - (C_kD / 4.0) * phi_m_safe ** (-3.5) * phi_eps ** (-1.5) * f_st
-    )
+    F_stable = 1.0 - phi_h / (sigma_theta * phi_m + 1e-10)
+    F_stable = F_stable - (C_kD / 4.0) * phi_m ** (-7.0 / 2.0) * phi_e ** (-3.0 / 2.0) * f_st
 
-    decay = jnp.exp(-z / (0.1 * L_safe + 10.0))
-    S_k = S_k * decay
-    S_k = jnp.clip(S_k, -10.0, 10.0)
-
-    return S_k
+    F = jnp.where(zeta < 0.0, F_unstable, F_stable)
+    prefactor = _safe_divide(u_star**3 * zeta, kappa * z, 0.0)
+    return prefactor * F
 
 
 @jit
-def compute_tke_residuals(u, v, theta, k, eps, z, params, u_star, w_theta_surface):
+def compute_tke_residuals(u, v, theta, k, eps, z, params, u_star):
     P_shear = compute_shear_production(u, v, k, eps, z, params)
     B_buoyancy = compute_buoyancy_production(theta, k, eps, z, params)
 
-    nu_t = compute_eddy_viscosity(k, eps, params)
+    _, _, w_theta, nu_t = compute_turbulent_fluxes(u, v, theta, k, eps, z, params)
     dk_dz = jnp.gradient(k, z)
     transport = nu_t / params.sigma_k * dk_dz
     d_transport_dz = jnp.gradient(transport, z)
 
-    S_k = compute_tke_source_term(z, u_star, w_theta_surface, params)
+    S_k = compute_tke_source_term(z, u_star, w_theta, params)
 
-    residual_k = P_shear + B_buoyancy - eps + d_transport_dz + S_k
+    residual_k = P_shear + B_buoyancy - eps + d_transport_dz - S_k
     return residual_k
 
 
@@ -287,54 +291,46 @@ def compute_monin_obukhov_length(u_star, w_theta_surface):
 
 @jit
 def compute_c3(zeta, params):
-    """Stability function C3 for the epsilon equation."""
-    zeta_clipped = jnp.clip(zeta, -2.0, 1.0)
-    phi_m, phi_h = compute_stability_functions(zeta_clipped)
-    phi_eps = compute_phi_eps(zeta_clipped, phi_m)
-
-    f_eps_unstable = phi_m ** (-0.5) * (1.0 - 0.75 * gamma_1 * zeta_clipped)
-    f_eps_stable = phi_m ** (-1.5) * (2.0 * phi_m - 1.0)
-    f_eps = jnp.where(zeta_clipped < 0, f_eps_unstable, f_eps_stable)
+    
+    phi_m, phi_h = compute_stability_functions(zeta)
+    phi_e = compute_phi_epsilon(zeta, phi_m)
+    f_eps_unstable = phi_m ** (5.0 / 2.0) * (1.0 - 0.75 * gamma_1 * zeta)
+    f_eps_stable = phi_m ** (-5.0 / 2.0) * (2.0 * phi_m - 1.0)
+    f_eps = jnp.where(zeta < 0.0, f_eps_unstable, f_eps_stable)
 
     zeta_safe = jnp.where(
-        jnp.abs(zeta_clipped) < 1e-6,
-        jnp.where(zeta_clipped >= 0, 1e-6, -1e-6),
-        zeta_clipped,
+        jnp.abs(zeta) < 1e-6,
+        jnp.where(zeta >= 0.0, 1e-6, -1e-6),
+        zeta,
     )
 
     term = (
         params.C_1 * phi_m
-        - params.C_2 * phi_eps
-        + (params.C_2 - params.C_1) * phi_eps ** (-0.5) * f_eps
+        - params.C_2 * phi_e
+        + (params.C_2 - params.C_1) * phi_e ** (-0.5) * f_eps
     )
-    C3 = (sigma_theta * phi_m) / (zeta_safe * phi_h) * term
-    return C3
+    return (sigma_theta * phi_m) / (zeta_safe * phi_h) * term
 
 
-def compute_eps_source_term(u, v, theta, k, eps, z, params, u_star, w_theta_surface):
+def compute_eps_source_term(u, v, theta, k, eps, z, params, u_star):
     P_shear = compute_shear_production(u, v, k, eps, z, params)
-    B = compute_buoyancy_production(theta, k, eps, z, params)
+    _, _, w_theta, _ = compute_turbulent_fluxes(u, v, theta, k, eps, z, params)
+    B = g / theta_0 * w_theta
 
-    L_mo = compute_monin_obukhov_length(u_star, w_theta_surface)
-    L_mo_safe = jnp.where(
-        jnp.abs(L_mo) < 1e-6,
-        jnp.where(L_mo >= 0, 1e-6, -1e-6),
-        L_mo,
-    )
-    zeta = z / L_mo_safe
+    zeta = compute_zeta(z, u_star, w_theta)
     C_3 = compute_c3(zeta, params)
     # This avoids explicit branching while preserving stable/unstable behavior.
 
     production_term = params.C_1 * (eps / (k + 1e-10)) * P_shear
-    buoyancy_term = C_3 * params.C_1 * (eps / (k + 1e-10)) * B
+    buoyancy_term = C_3 * (eps / (k + 1e-10)) * B
     destruction_term = -params.C_2 * (eps**2 / (k + 1e-10))
 
     return production_term + buoyancy_term + destruction_term
 
 
 @jit
-def compute_eps_residuals(u, v, theta, k, eps, z, params, u_star, w_theta_surface):
-    S_eps = compute_eps_source_term(u, v, theta, k, eps, z, params, u_star, w_theta_surface)
+def compute_eps_residuals(u, v, theta, k, eps, z, params, u_star):
+    S_eps = compute_eps_source_term(u, v, theta, k, eps, z, params, u_star)
 
     nu_t = compute_eddy_viscosity(k, eps, params)
     deps_dz = jnp.gradient(eps, z)
